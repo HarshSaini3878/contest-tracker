@@ -61,11 +61,7 @@ npm install
 npm run dev
 ```
 
-## Future Enhancements
 
-- **Add user authentication**
-- **Implement notifications for upcoming contests**
-- **Improve search and filtering options**
 
 ## Contributions
 
