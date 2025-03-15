@@ -47,7 +47,7 @@ npm install
 Create a **.env** file and add:
 ```sh
 MONGO_URI=your_mongodb_connection_string
-YOUTUBE_API_KEY=your_youtube_api_key
+API_KEY=your_youtube_api_key
 ```
 Start the server:
 ```sh
