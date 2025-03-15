@@ -6,6 +6,7 @@ const contestSchema = new mongoose.Schema({
   platform: String,
   startTime: Date,
   duration: String,
+  SolutionUrl:String,
 });
 
 export default mongoose.model("Contest", contestSchema);
