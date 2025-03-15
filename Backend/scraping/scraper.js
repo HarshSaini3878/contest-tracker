@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import puppeteer from "puppeteer";
+import cron from "node-cron";
 import Contest from "../models/contestModel.js";
 
 // Function to convert "Starts in: Xd Xh Xm Xs" to milliseconds
@@ -14,7 +15,7 @@ const parseDuration = (durationText) => {
 const scrapeCPHelper = async () => {
   try {
     console.log("🚀 Launching Puppeteer...");
-    const browser = await puppeteer.launch({ headless: false, slowMo: 50 });
+    const browser = await puppeteer.launch({ headless: true });
 
     const page = await browser.newPage();
     console.log("🌍 Navigating to CPHelper Contests Page...");
@@ -29,17 +30,15 @@ const scrapeCPHelper = async () => {
     console.log("📡 Extracting Contests...");
     let contests = await page.$$eval(".platform-card.glass-panel", (cards) => {
       return cards.map((card) => {
-        let platformElement = card.querySelector(".platform-header");
-        let contestName = platformElement ? platformElement.innerText.split("\n")[0].trim() : "Unknown";
-
+        let rawPlatform = card.querySelector(".platform-header")?.innerText.trim() || "N/A";
+        let contestName = rawPlatform.split("\n")[0].trim();
         let rawDuration = card.querySelector(".contest-status")?.innerText.trim() || "N/A";
-        let contestUrl = card.querySelector("a")?.href || "N/A";
 
         return {
           name: contestName,
-          url: contestUrl,
-          platform: contestName, // Extracted correctly
-          startTime: rawDuration.startsWith("Starts in:") ? rawDuration : rawDuration.includes("Ended") ? "Ended" : "N/A",
+          url: card.querySelector("a")?.href || "N/A",
+          platform: rawPlatform.replace(/\n.*/, ""),
+          startTime: rawDuration.startsWith("Starts in:") ? rawDuration : "N/A",
           duration: rawDuration,
         };
       });
@@ -50,10 +49,10 @@ const scrapeCPHelper = async () => {
       if (contest.duration.startsWith("Starts in:")) {
         let ms = parseDuration(contest.duration.replace("Starts in: ", ""));
         if (ms !== null) {
-          contest.startTime = new Date(Date.now() + ms); // Store as Date object
+          contest.startTime = new Date(Date.now() + ms);
         }
-      } else if (contest.startTime === "Ended") {
-        contest.startTime = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // Set to a past date (7 days ago)
+      } else if (contest.duration.includes("Ended")) {
+        contest.startTime = new Date(Date.now() - 86400000); // Set ended contests to 1 day in the past
       }
       return contest;
     });
@@ -63,29 +62,34 @@ const scrapeCPHelper = async () => {
     await browser.close();
     console.log("✅ Scraping Completed!");
 
-    // Delete old data and save new contests to MongoDB
+    // Save contests to MongoDB
     await saveContestsToDB(contests);
   } catch (error) {
     console.error("❌ Error:", error);
   }
 };
 
-// Function to delete old data and save new contests
+// Function to save contests to MongoDB
 const saveContestsToDB = async (contests) => {
   try {
-    console.log("🗑 Deleting old contest data...");
-    await Contest.deleteMany({}); // Delete all old contests
+    console.log("💾 Clearing old contests...");
+    await Contest.deleteMany({}); // Delete all old data
 
-    console.log("💾 Saving new contests to MongoDB...");
-    await Contest.insertMany(contests); // Insert all new contests at once
-
+    console.log("💾 Saving contests to MongoDB...");
+    for (const contest of contests) {
+      await Contest.findOneAndUpdate(
+        { name: contest.name, platform: contest.platform },
+        contest,
+        { upsert: true, new: true }
+      );
+    }
     console.log("✅ Contests saved successfully!");
   } catch (error) {
     console.error("❌ Error saving contests:", error);
   }
 };
 
-// Connect to MongoDB and scrape contests
+// Connect to MongoDB and run scraper
 const scrapeAll = async () => {
   try {
     await mongoose.connect("mongodb://localhost:27017/contestTracker", {
@@ -103,4 +107,9 @@ const scrapeAll = async () => {
   }
 };
 
-scrapeAll();
+cron.schedule("0 0 * * *", async () => {
+  console.log("⏳ Running scheduled contest scraper...");
+  await scrapeAll();
+});
+
+console.log("🕒 Cron job scheduled: Scraping contests midnight.");
