@@ -31,15 +31,16 @@ const scrapeCPHelper = async () => {
     let contests = await page.$$eval(".platform-card.glass-panel", (cards) => {
       return cards.map((card) => {
         let rawPlatform = card.querySelector(".platform-header")?.innerText.trim() || "N/A";
-        let contestName = rawPlatform.split("\n")[0].trim();
-        let rawDuration = card.querySelector(".contest-status")?.innerText.trim() || "N/A";
+                let contestName = rawPlatform.split("\n")[0];//  Extracting name
+                let platform_=rawPlatform.split(" ")[0];
+                let rawDuration = card.querySelector(".contest-status")?.innerText.trim() || "N/A";
 
-        return {
-          name: contestName,
-          url: card.querySelector("a")?.href || "N/A",
-          platform: rawPlatform.replace(/\n.*/, ""),
-          startTime: rawDuration.startsWith("Starts in:") ? rawDuration : "N/A",
-          duration: rawDuration,
+                return {
+                    name: contestName,
+                    url: card.querySelector("a")?.href || "N/A",
+                    platform: platform_,
+                    startTime: rawDuration.startsWith("Starts in:") ? rawDuration : "N/A",
+                    duration: rawDuration,
         };
       });
     });
